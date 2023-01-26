@@ -1,36 +1,33 @@
 import React, { useState, useEffect, Key } from 'react';
 import io from 'socket.io-client';
 import Player from './Player';
-import Joi from 'joi';
-
-const joiPlayerData = Joi.object({
-  name: Joi.string().min(1).required(),
-  x: Joi.number().required(),
-  y: Joi.number().required(),
-});
 
 interface playerData {
-  name: String;
+  name: string;
+  hunter: boolean;
   x: number;
   y: number;
 }
 
-const url = 'http://16.170.113.55/';
+const url = 'http://localhost:8080'; //'http://16.170.113.55/';
 
 const socket = io(url);
 
 const Game = () => {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [players, setPlayers] = useState<playerData[]>([]);
-  const [myName, setMyName] = useState<String>('');
+  const [myName, setMyName] = useState<string>('');
+  const [isHunter, setIsHunter] = useState<boolean>(false);
   const [hasRegistered, setHasRegistered] = useState(false);
   const [ready, setReady] = useState(true);
 
   onmousemove = (e) => {
     if (ready) {
       if (hasRegistered) {
+        setReady(false);
         const myPlayer = {
           name: myName,
+          hunter: isHunter,
           x: e.clientX,
           y: e.clientY,
         } as playerData;
@@ -39,14 +36,19 @@ const Game = () => {
           setReady(() => {
             return true;
           });
-        }, 75);
+        }, 40);
       }
     }
   };
 
   const createMe = () => {
     if (!players.find((player) => player.name == myName)) {
-      socket.emit('createPlayer', { name: myName, x: 0, y: 0 });
+      socket.emit('createPlayer', {
+        name: myName,
+        hunter: isHunter,
+        x: 0,
+        y: 0,
+      });
     }
   };
 
@@ -67,7 +69,7 @@ const Game = () => {
         return [...players, data];
       });
       if (data.name == myName) {
-        console.log('daiowdnawd');
+        console.log('created me');
 
         setHasRegistered(() => {
           return true;
@@ -76,6 +78,9 @@ const Game = () => {
     });
 
     socket.on('deletePlayer', (data) => {
+      if (data.name == myName) {
+        setHasRegistered(false);
+      }
       setPlayers((players) => {
         return [...players.filter((player) => player.name != data.name)];
       });
@@ -90,7 +95,7 @@ const Game = () => {
     socket.on('updatePlayer', (data: playerData) => {
       setPlayers(() => {
         return [
-          { name: data.name, x: data.x, y: data.y },
+          { name: data.name, hunter: data.hunter, x: data.x, y: data.y },
           ...players.filter((player) => player.name != data.name),
         ];
       });
@@ -101,6 +106,10 @@ const Game = () => {
       socket.off('disconnect');
     };
   }, [myName, players]);
+
+  const handleHunterChange = (e: any) => {
+    setIsHunter(e.target.value);
+  };
 
   return (
     <div className="gameScreen">
@@ -113,13 +122,22 @@ const Game = () => {
             placeholder="Name"
             onChange={(event) => setMyName(event.target.value)}
           ></input>
+          `
+          <div>
+            <p style={{ margin: '0px' }}>Want to be hunter?</p>
+            <input
+              type={'checkbox'}
+              onChange={handleHunterChange}
+              value={isHunter ? 'true' : 'false'}
+            ></input>
+          </div>
           <button onClick={createMe}>Join now!</button>
         </div>
       ) : (
         <></>
       )}
       {players.map((player) => {
-        return <Player name={player.name} x={player.x} y={player.y} />;
+        return <Player player={player} players={players} socket={socket} />;
       })}
     </div>
   );
